@@ -310,8 +310,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👨‍💻 Author
 
 **Varun Kumar Singh**
-- GitHub: [@varun-singh]
-- Email: [your-email@example.com]
+- GitHub: [@varunSinghGIT]
+- Email: [kumarsingh.varun2005@gmail.com]
 
 ## 🙏 Acknowledgments
 
