@@ -1,0 +1,46 @@
+# Flask Web Framework
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# Deep Learning Frameworks
+torch==2.0.1
+torchvision==0.15.2
+tensorflow==2.13.0
+tensorflow-keras==2.13.0
+
+# Hugging Face Transformers
+transformers==4.33.2
+tokenizers==0.13.3
+
+# LangChain for Chatbot
+langchain==0.0.292
+langchain-huggingface==0.0.3
+
+# Image Processing
+Pillow==10.0.0
+opencv-python==4.8.1.78
+
+# Scientific Computing
+numpy==1.24.3
+scipy==1.11.2
+
+# File Handling and Utilities
+Werkzeug==2.3.7
+secure-filename==0.1
+
+# Additional Dependencies
+requests==2.31.0
+urllib3==2.0.4
+certifi==2023.7.22
+charset-normalizer==3.2.0
+idna==3.4
+
+# Optional: For better performance
+# accelerate==0.21.0  # Uncomment for Hugging Face model acceleration
+# bitsandbytes==0.41.1  # Uncomment for model quantization
+
+# Development Dependencies (Optional)
+# jupyter==1.0.0
+# notebook==7.0.2
+# matplotlib==3.7.2
+# seaborn==0.12.2
