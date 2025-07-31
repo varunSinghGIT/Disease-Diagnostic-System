@@ -36,8 +36,8 @@ charset-normalizer==3.2.0
 idna==3.4
 
 # Optional: For better performance
-# accelerate==0.21.0  # Uncomment for Hugging Face model acceleration
-# bitsandbytes==0.41.1  # Uncomment for model quantization
+# accelerate==0.21.0  
+# bitsandbytes==0.41.1  
 
 # Development Dependencies (Optional)
 # jupyter==1.0.0
