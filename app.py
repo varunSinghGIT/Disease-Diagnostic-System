@@ -14,6 +14,10 @@ import numpy as np
 from tensorflow.keras.models import load_model
 import tensorflow as tf
 
+from gradcam import GradCAM, ViTGradCAM, apply_colormap_on_image
+import cv2
+
+
 # Set up Flask app
 app = Flask(__name__)
 
@@ -130,11 +134,17 @@ def load_kidney_model():
     model.eval()
     return model
 
+def load_brain_tumor_model():
+    model = load_model("brain_tumor_detection_model.h5")  
+    return model
+
 # Initialize models
 monkeypox_model = None
 kidney_model = None
+brain_tumor_model = None
 monkeypox_class_names = ['Monkeypox', 'Others']
 kidney_class_names = ['Cyst', 'Normal', 'Stone', 'Tumor']  
+brain_tumor_labels = ['glioma', 'meningioma', 'notumor', 'pituitary']
 
 # Initialize models at startup
 try:
@@ -149,13 +159,6 @@ try:
 except Exception as e:
     print(f"Error loading kidney model: {str(e)}")
 
-def load_brain_tumor_model():
-    model = load_model("brain_tumor_detection_model.h5")  
-    return model
-
-brain_tumor_model = None
-brain_tumor_labels = ['glioma', 'meningioma', 'notumor', 'pituitary']
-
 try:
     brain_tumor_model = load_brain_tumor_model()
     print("Brain Tumor model loaded successfully!")
@@ -166,6 +169,96 @@ except Exception as e:
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+def generate_gradcam_keras(model, img_array, class_idx):
+    """Generate GradCAM for Keras models with improved error handling"""
+    try:
+        # Print model summary for debugging
+        print(f"Model input shape: {model.input_shape}")
+        print(f"Model output shape: {model.output_shape}")
+        
+        # Find the last convolutional layer
+        last_conv_layer = None
+        conv_layer_name = None
+        
+        for i, layer in enumerate(reversed(model.layers)):
+            if 'conv' in layer.__class__.__name__.lower():
+                last_conv_layer = layer
+                conv_layer_name = layer.name
+                print(f"Found convolutional layer: {layer.name} at index {len(model.layers)-1-i}")
+                break
+        
+        if last_conv_layer is None:
+            print("No convolutional layer found. Available layers:")
+            for i, layer in enumerate(model.layers):
+                print(f"  Layer {i}: {layer.name} ({layer.__class__.__name__})")
+            return None
+        
+        print(f"Using layer: {conv_layer_name} for GradCAM")
+        print(f"Layer output shape: {last_conv_layer.output_shape}")
+        
+        # Create gradient model
+        grad_model = tf.keras.models.Model(
+            inputs=[model.inputs], 
+            outputs=[last_conv_layer.output, model.output]
+        )
+        
+        # Convert input to tensor
+        img_tensor = tf.convert_to_tensor(img_array, dtype=tf.float32)
+        print(f"Input tensor shape: {img_tensor.shape}")
+        
+        # Compute gradients
+        with tf.GradientTape() as tape:
+            tape.watch(img_tensor)
+            conv_outputs, predictions = grad_model(img_tensor)
+            loss = predictions[:, class_idx]
+            print(f"Conv outputs shape: {conv_outputs.shape}")
+            print(f"Predictions shape: {predictions.shape}")
+            print(f"Loss shape: {loss.shape}")
+        
+        # Get gradients
+        grads = tape.gradient(loss, conv_outputs)
+        print(f"Gradients shape: {grads.shape}")
+        
+        if grads is None:
+            print("Gradients are None - cannot compute GradCAM")
+            return None
+        
+        # Handle different gradient dimensions
+        if len(grads.shape) == 4:  # (batch, height, width, channels)
+            pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+            conv_outputs_squeezed = conv_outputs[0]
+        elif len(grads.shape) == 3:  # (height, width, channels) - no batch dimension
+            pooled_grads = tf.reduce_mean(grads, axis=(0, 1))
+            conv_outputs_squeezed = conv_outputs
+        else:
+            print(f"Unexpected gradient shape: {grads.shape}")
+            return None
+        
+        print(f"Pooled gradients shape: {pooled_grads.shape}")
+        print(f"Conv outputs squeezed shape: {conv_outputs_squeezed.shape}")
+        
+        # Generate heatmap
+        heatmap = tf.reduce_mean(tf.multiply(pooled_grads, conv_outputs_squeezed), axis=-1)
+        print(f"Heatmap shape: {heatmap.shape}")
+        
+        # Normalize heatmap
+        heatmap = tf.maximum(heatmap, 0)
+        max_val = tf.reduce_max(heatmap)
+        if max_val > 0:
+            heatmap = heatmap / max_val
+        
+        heatmap_np = heatmap.numpy()
+        print(f"Final heatmap shape: {heatmap_np.shape}")
+        print(f"Heatmap min/max: {heatmap_np.min():.3f}/{heatmap_np.max():.3f}")
+        
+        return heatmap_np
+        
+    except Exception as e:
+        print(f"Error in GradCAM generation: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 @app.route('/')
 def index():
@@ -192,20 +285,31 @@ def predict_monkeypox():
                 predicted_class = torch.argmax(probabilities).item()
                 probability = probabilities[predicted_class].item() * 100
 
-                # Debugging: Print the predicted class and probability
-                print(f"Predicted Class Index: {predicted_class}")  
-                print(f"Predicted Class: {monkeypox_class_names[predicted_class]}")
-                print(f"Probability: {probability:.2f}%")
+            # ===== GradCAM =====
+            heatmap_base64 = None
+            try:
+                # Use specialized ViT GradCAM for BViTNet models
+                vit_gradcam = ViTGradCAM(monkeypox_model)
+                heatmap = vit_gradcam.generate(img_tensor, predicted_class)
+                if heatmap is not None:
+                    overlay = apply_colormap_on_image(img, heatmap)
+                    _, buffer = cv2.imencode('.png', overlay)
+                    heatmap_base64 = base64.b64encode(buffer).decode('utf-8')
+                vit_gradcam.cleanup()
+            except Exception as e:
+                print(f"Error generating GradCAM for monkeypox: {str(e)}")
+                import traceback
+                traceback.print_exc()
 
-                prediction = {
-                    'class': monkeypox_class_names[predicted_class],
-                    'probability': f"{probability:.2f}%",
-                    'is_monkeypox': predicted_class == 1
-                }
+            prediction = {
+                'class': monkeypox_class_names[predicted_class],
+                'probability': f"{probability:.2f}%",
+                'is_monkeypox': predicted_class == 1,
+                'heatmap': heatmap_base64
+            }
 
-                return jsonify(prediction)
+            return jsonify(prediction)
         except Exception as e:
-            print(f"Error: {str(e)}")  # Debugging error messages
             return jsonify({'error': str(e)})
     
     return jsonify({'error': 'File type not allowed'})
@@ -231,25 +335,35 @@ def predict_kidney():
                 predicted_class = torch.argmax(probabilities).item()
                 probability = probabilities[predicted_class].item() * 100
 
-                # Get all class probabilities for display
-                all_probs = {kidney_class_names[i]: f"{probabilities[i].item() * 100:.2f}%" 
-                            for i in range(len(kidney_class_names))}
+            # ===== GradCAM =====
+            heatmap_base64 = None
+            try:
+                # Use standard GradCAM for VGG16 models
+                gradcam = GradCAM(kidney_model, kidney_model.features[-1])
+                heatmap = gradcam.generate(img_tensor, predicted_class)
+                if heatmap is not None:
+                    overlay = apply_colormap_on_image(img, heatmap)
+                    _, buffer = cv2.imencode('.png', overlay)
+                    heatmap_base64 = base64.b64encode(buffer).decode('utf-8')
+                gradcam.cleanup()
+            except Exception as e:
+                print(f"Error generating GradCAM for kidney: {str(e)}")
+                import traceback
+                traceback.print_exc()
 
-                # Debugging: Print the predicted class and probability
-                print(f"Kidney Prediction - Class Index: {predicted_class}")  
-                print(f"Kidney Prediction - Class: {kidney_class_names[predicted_class]}")
-                print(f"Kidney Prediction - Probability: {probability:.2f}%")
+            all_probs = {kidney_class_names[i]: f"{probabilities[i].item() * 100:.2f}%" 
+                         for i in range(len(kidney_class_names))}
 
-                prediction = {
-                    'class': kidney_class_names[predicted_class],
-                    'probability': f"{probability:.2f}%",
-                    'is_normal': predicted_class == 1,  # Index 1 is 'Normal' in your class list
-                    'all_probabilities': all_probs  # Include all class probabilities
-                }
+            prediction = {
+                'class': kidney_class_names[predicted_class],
+                'probability': f"{probability:.2f}%",
+                'is_normal': predicted_class == 1,
+                'all_probabilities': all_probs,
+                'heatmap': heatmap_base64
+            }
 
-                return jsonify(prediction)
+            return jsonify(prediction)
         except Exception as e:
-            print(f"Error: {str(e)}")  # Debugging error messages
             return jsonify({'error': str(e)})
     
     return jsonify({'error': 'File type not allowed'})
@@ -268,30 +382,47 @@ def predict_brain_tumor():
         try:
             # Preprocess image
             img = Image.open(file.stream).convert('RGB')
-            img = img.resize((150, 150))  # Match input size of model
-            img_array = np.array(img) / 255.0  # Normalize
-            img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
+            img_resized = img.resize((150, 150))
+            img_array = np.array(img_resized) / 255.0
+            img_array = np.expand_dims(img_array, axis=0)
 
             # Predict
             predictions = brain_tumor_model.predict(img_array)
             predicted_class = np.argmax(predictions[0])
             confidence = predictions[0][predicted_class] * 100
 
-            # Get all probabilities
-            all_probs = {
-                brain_tumor_labels[i]: f"{predictions[0][i] * 100:.2f}%"
-                for i in range(len(brain_tumor_labels))
-            }
+            # === Generate GradCAM for Keras model ===
+            heatmap_base64 = None
+            try:
+                heatmap = generate_gradcam_keras(brain_tumor_model, img_array, predicted_class)
+                if heatmap is not None:
+                    # Resize heatmap to match original image
+                    heatmap_resized = cv2.resize(heatmap, (150, 150))
+                    overlay = apply_colormap_on_image(img_resized, heatmap_resized)
+                    _, buffer = cv2.imencode('.png', overlay)
+                    heatmap_base64 = base64.b64encode(buffer).decode('utf-8')
+                    print("Brain tumor GradCAM generated successfully")
+                else:
+                    print("Failed to generate heatmap - heatmap is None")
+            except Exception as e:
+                print(f"Error generating GradCAM for brain tumor: {str(e)}")
+                import traceback
+                traceback.print_exc()
+
+            all_probs = {brain_tumor_labels[i]: f"{predictions[0][i] * 100:.2f}%" 
+                         for i in range(len(brain_tumor_labels))}
 
             response = {
                 'class': brain_tumor_labels[predicted_class],
                 'confidence': f"{confidence:.2f}%",
-                'all_probabilities': all_probs
+                'all_probabilities': all_probs,
+                'heatmap': heatmap_base64
             }
 
             return jsonify(response)
 
         except Exception as e:
+            print(f"Error in brain tumor prediction: {str(e)}")
             return jsonify({'error': str(e)})
 
     return jsonify({'error': 'File type not allowed'})
