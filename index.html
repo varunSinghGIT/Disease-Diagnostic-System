@@ -335,6 +335,14 @@
                 }
                 
                 resultHTML += `<p class="mt-3 small text-muted">This analysis is for informational purposes only and should not replace professional medical advice.</p>`;
+
+                if (data.heatmap) {
+                    resultHTML += `
+                        <div class="mt-3">
+                            <h6>Grad-CAM Visualization:</h6>
+                            <img src="data:image/png;base64,${data.heatmap}" alt="GradCAM Heatmap" class="img-fluid rounded border">
+                        </div>`;
+                }
                 
                 resultDiv.innerHTML = resultHTML;
             })
@@ -410,6 +418,14 @@
                             Regular check-ups recommended.
                         </div>`;
                 }
+
+                if (data.heatmap) {
+                    resultHTML += `
+                        <div class="mt-3">
+                            <h6>Grad-CAM Visualization:</h6>
+                            <img src="data:image/png;base64,${data.heatmap}" alt="GradCAM Heatmap" class="img-fluid rounded border">
+                        </div>`;
+                }
                 
                 resultHTML += `<p class="mt-3 small text-muted">This analysis is for informational purposes only and should not replace professional medical advice.</p>`;
                 
@@ -474,6 +490,14 @@
                 <div class="alert alert-success mt-3">
                     <strong>Result:</strong> No tumor detected (${parseFloat(data.confidence).toFixed(1)}% confidence).
                     Regular check-ups recommended.
+                </div>`;
+        }
+
+        if (data.heatmap) {
+            resultHTML += `
+                <div class="mt-3">
+                    <h6>Grad-CAM Visualization:</h6>
+                    <img src="data:image/png;base64,${data.heatmap}" alt="GradCAM Heatmap" class="img-fluid rounded border">
                 </div>`;
         }
 
