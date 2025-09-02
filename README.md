@@ -28,23 +28,30 @@ A comprehensive web-based medical image analysis system that leverages deep lear
 
 ## 🏗️ System Architecture
 
-```
 disease-diagnostic-system/
 ├── app.py                          # Main Flask application
-├── chatapp.py                      # Chatbot functionality
+├── auth.py                         # User authentication (login/signup, sessions, JWT, etc.)
+├── diagnostics.py                  # Diagnostic logic (prediction functions for diseases)
+├── models.py                       # Model loading and inference helper functions
+├── gradcam.py                      # Grad-CAM visualization for CNN/Vision Transformer
+│
 ├── templates/
 │   └── index.html                  # Main web interface
+│
 ├── models/
 │   ├── model.pth                   # Monkeypox BViT model
 │   ├── kidney_model.pth            # Kidney VGG16 model
 │   └── brain_tumor_detection_model.h5  # Brain tumor CNN model
+│
 ├── uploads/                        # Image upload directory
+│
 ├── notebook/                       # Jupyter notebooks for training
-│   ├── Monkeypox-Bvit.ipynb      # Monkeypox model training
-│   ├── kidney-vgg16.ipynb         # Kidney model training
+│   ├── Monkeypox-Bvit.ipynb        # Monkeypox model training
+│   ├── kidney-vgg16.ipynb          # Kidney model training
 │   └── brain-tumor-detection-96-accuracy.ipynb
+│
 └── requirements.txt                # Python dependencies
-```
+
 
 ## 🚀 Installation
 
