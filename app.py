@@ -8,9 +8,9 @@ from models import db, User
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a_very_secret_key_that_should_be_changed')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
-app.config['UPLOAD_FOLDER'] = 'uploads' # Add this line
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload # Add this line
-app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg'} # Add this line
+app.config['UPLOAD_FOLDER'] = 'uploads' 
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
+app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg'} 
 db.init_app(app)  # Initialize the database with the app
 login_manager = LoginManager(app)
 login_manager.login_view = 'auth.login'
