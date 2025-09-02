@@ -27,7 +27,7 @@ A comprehensive web-based medical image analysis system that leverages deep lear
 - Context-aware responses for medical imaging questions
 
 ## 🏗️ System Architecture
-
+'''
 disease-diagnostic-system/
 ├── app.py                          # Main Flask application
 ├── auth.py                         # User authentication (login/signup, sessions, JWT, etc.)
@@ -51,7 +51,7 @@ disease-diagnostic-system/
 │   └── brain-tumor-detection-96-accuracy.ipynb
 │
 └── requirements.txt                # Python dependencies
-
+'''
 
 ## 🚀 Installation
 
